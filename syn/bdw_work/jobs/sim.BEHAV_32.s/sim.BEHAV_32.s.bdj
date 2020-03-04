@@ -1,0 +1,12 @@
+21402
+21414
+socp04
+bdw_work/trace/sim.BEHAV_32.s.trace
+1
+0
+0
+0
+1583357715
+1583357995
+hub_ncsim -work BEHAV_32 -reflib worklib -reflib bdw_work/INCA_libs/bdw_worklib -messages -64bit -GCC_VERS 4.1 -NOTIMINGCHECKS -UNBUFFERED -CFLAGS -Wl,-rpath,/opt/cad/stratus/tools.lnx86/stratus/lib/64bit bdw_work/modules/sha/IOCFG_32/incisive/sha.o bdw_work/modules/tb/TESTBENCH_32/incisive/driver.o bdw_work/modules/tb/TESTBENCH_32/incisive/memory.o bdw_work/modules/tb/TESTBENCH_32/incisive/system.o bdw_work/modules/tb/TESTBENCH_32/incisive/sc_main.o bdw_work/libesc/incisive/libesc.a -top sc_main
+

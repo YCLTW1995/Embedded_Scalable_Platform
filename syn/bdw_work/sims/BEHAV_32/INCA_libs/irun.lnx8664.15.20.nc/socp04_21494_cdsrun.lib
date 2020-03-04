@@ -1,0 +1,4 @@
+SOFTINCLUDE /opt/cad/incisive/tools/inca/files/cds.lib
+define worklib ../worklib
+define bdw_worklib ../../../../INCA_libs/bdw_worklib
+define BEHAV_32 ../BEHAV_32

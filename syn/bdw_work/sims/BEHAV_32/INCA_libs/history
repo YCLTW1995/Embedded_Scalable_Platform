@@ -1,0 +1,5 @@
+//
+// File created by:  irun
+// Do not modify this file
+
+s1::(04Mar2020:16:35:16):( irun -l bdw_work/sims/BEHAV_32/irun.log -nclibdirpath bdw_work/sims/BEHAV_32 -sysc -incdir /opt/cad/stratus/tools.lnx86/stratus/lib -incdir bdw_work/wrappers +libext+.v +access+r +define+BDW_NCSC -work BEHAV_32 -reflib worklib -reflib bdw_work/INCA_libs/bdw_worklib -messages -64bit -GCC_VERS 4.1 -NOTIMINGCHECKS -UNBUFFERED -CFLAGS -Wl,-rpath,/opt/cad/stratus/tools.lnx86/stratus/lib/64bit bdw_work/modules/sha/IOCFG_32/incisive/sha.o bdw_work/modules/tb/TESTBENCH_32/incisive/driver.o bdw_work/modules/tb/TESTBENCH_32/incisive/memory.o bdw_work/modules/tb/TESTBENCH_32/incisive/system.o bdw_work/modules/tb/TESTBENCH_32/incisive/sc_main.o bdw_work/libesc/incisive/libesc.a -top sc_main /opt/cad/stratus/tools.lnx86/stratus/lib/64bit/libhubexec.so /opt/cad/stratus/tools.lnx86/stratus/lib/64bit/libhub.so /opt/cad/stratus/tools.lnx86/stratus/lib/64bit/libbdw_st.so )

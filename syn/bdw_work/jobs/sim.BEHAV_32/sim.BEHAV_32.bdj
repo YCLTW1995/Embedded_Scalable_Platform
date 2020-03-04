@@ -1,0 +1,12 @@
+19340
+19351
+socp04
+bdw_work/trace/sim.BEHAV_32.trace
+1
+0
+0
+0
+1583357613
+1583357993
+make --no-print-directory -f Makefile CWBExec=1 sim_BEHAV_32
+
