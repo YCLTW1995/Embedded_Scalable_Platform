@@ -1,5 +1,0 @@
--nocopyright
--work BEHAV_32
--GCC_VERS 4.1
--cdslib /home/esp2020/yl4337/SHA/SystemC/Embedded_Scalable_Platform/syn/bdw_work/sims/BEHAV_32/INCA_libs/irun.lnx8664.15.20.nc/cdsrun.lib
--hdlvar /home/esp2020/yl4337/SHA/SystemC/Embedded_Scalable_Platform/syn/bdw_work/sims/BEHAV_32/INCA_libs/irun.lnx8664.15.20.nc/hdlrun.var
