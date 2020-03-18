@@ -1,2 +1,0 @@
--L${NCSC_CDS_ROOT}/tools/lib/64bit -lstdc++ -lgcc_s -L${NCSC_CDS_ROOT}/tools/lib -L${NCSC_CDS_ROOT}/tools/tbsc/lib/64bit/gnu/4.1 -L${NCSC_CDS_ROOT}/tools/lib/64bit/SuSE -Wl,-rpath,${NCSC_CDS_ROOT}/tools/lib/64bit:${NCSC_CDS_ROOT}/tools/tbsc/lib/64bit/gnu/4.1:${NCSC_CDS_ROOT}/tools/lib/64bit/SuSE -ltbsc -lscv
--L/opt/cad/incisive/tools/systemc/lib/64bit/gnu/4.1 -lsystemc_sh -lscBootstrap_sh -lncscCoroutines_sh -lovm -lncsccci_sh -lncscfactory_sh -lxml_parser -lncsctlm2_sh -L/opt/cad/incisive/tools/methodology/UVM/CDNS-1.1d/sc/lib/64bit -luvm
