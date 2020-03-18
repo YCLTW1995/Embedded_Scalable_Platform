@@ -163,11 +163,11 @@ void sha::single_write(reg_target_t::awchan_t &awchan, const
 
     case CMD_REG:
         if (wdata == ACCELERATOR_CMD_CLEARIRQ) {
-            REPORT_DEBUG("CMD_REG:  0x%08x (w)", wdata);
+            REPORT_DEBUG("CMD_REG_1:  0x%08x (w)", wdata);
             this->config_ok_sig.write(false);
             this->cmd_sig.write(wdata);
         } else if (wdata == ACCELERATOR_CMD_GO) {
-            REPORT_DEBUG("CMD_REG:  0x%08x (w)", wdata);
+            REPORT_DEBUG("CMD_REG_2:  0x%08x (w)", wdata);
             this->config_ok_sig.write(false);
             this->cmd_sig.write(wdata);
         } else {

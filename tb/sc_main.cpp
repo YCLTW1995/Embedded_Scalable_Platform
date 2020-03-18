@@ -1,55 +1,48 @@
-/* Copyright 2019 Columbia University, SLD Group */
+// Copyright (c) 2011-2019 Columbia University, System Level Design Group
+// SPDX-License-Identifier: Apache-2.0
 
 #include "system.hpp"
 
-system_t *tb_system = NULL;
+#define RESET_PERIOD (30 * CLOCK_PERIOD)
 
-// Default image if argv[] is not set
-//std::string image_path = "cat.bin";
-
-//std::string model_path = "../../models/dwarf7.mojo";
+system_t * testbench = NULL;
 
 extern void esc_elaborate()
 {
-    // Creating the whole system
-    // Original 
-        //tb_system = new system_t("tb_system", model_path, image_path);
-    // My version
-    tb_system = new system_t("tb_system") ;
+	// Creating the whole system
+	testbench = new system_t("testbench");
 }
 
 extern void esc_cleanup()
 {
-    // Deleting the system
-    delete tb_system;
+	// Deleting the system
+	delete testbench;
 }
 
 int sc_main(int argc, char *argv[])
 {
-    // Kills various SystemC warnings
-    sc_report_handler::set_actions(SC_WARNING, SC_DO_NOTHING);
+	// Kills a Warning when using SC_CTHREADS
+	//sc_report_handler::set_actions("/IEEE_Std_1666/deprecated", SC_DO_NOTHING);
+	sc_report_handler::set_actions (SC_WARNING, SC_DO_NOTHING);
 
-    //if (argc >= 2)
-    //{ image_path = std::string(argv[1]) + ".bin"; }
+	esc_initialize(argc, argv);
+	esc_elaborate();
 
-    esc_initialize(argc, argv);
-    esc_elaborate();
+	sc_clock        clk("clk", CLOCK_PERIOD, SC_PS);
+	sc_signal<bool> rst("rst");
 
-    sc_clock clk("clk", CLOCK_PERIOD, SC_NS);
-    sc_signal<bool> rst("rst");
+	testbench->clk(clk);
+	testbench->rst(rst);
+	rst.write(false);
 
-    tb_system->clk(clk);
-    tb_system->rst(rst);
+	sc_start(RESET_PERIOD, SC_PS);
 
-    rst.write(false);
+	rst.write(true);
 
-    sc_start(RESET_PERIOD, SC_NS);
+	sc_start();
 
-    rst.write(true);
+	esc_log_pass();
+        esc_cleanup();
 
-    sc_start();
-
-    esc_log_pass();
-
-    return 0;
+	return 0;
 }

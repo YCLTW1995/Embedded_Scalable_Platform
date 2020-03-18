@@ -1,186 +1,351 @@
-/* Copyright 2018 Columbia University SLD Group */
+// Copyright (c) 2011-2019 Columbia University, System Level Design Group
+// SPDX-License-Identifier: Apache-2.0
 
 #include "sha.hpp"
+#include "sha_directives.hpp"
 
-// -- Functions (regs)
-
-#include "sha_regs.hpp"
-
-// -- Functions (utils)
-
-#include "sha_utils.hpp"
-
-// -- Functions (kernel)
+// Functions
 
 #include "sha_functions.hpp"
 
-// -- Processes
+// Processes
 
-void sha::load_input(void)
+void sha::load_input()
 {
-    bool ping_pong;
-    //uint32_t niters;
 
     // Reset
     {
-        HLS_DEFINE_PROTOCOL("load-input-reset");
+        HLS_PROTO("load-reset");
 
-        dma_initiator.archan->reset_put();
-        dma_initiator.rchan->reset_get();
+        this->reset_load_input();
 
-        input_ready.req.reset_req();
+        // explicit PLM ports reset if any
 
-        ping_pong = false;
+        // User-defined reset code
 
         wait();
     }
 
     // Config
+    /* <<--params-->> */
+    int32_t input_size;
+    int32_t input_v_size;
     {
-        HLS_DEFINE_PROTOCOL("load-input-config");
+        HLS_PROTO("load-config");
 
-        wait_for_config(); // memory-mapped regs
+        cfg.wait_for_config(); // config process
+        conf_info_t config = this->conf_info.read();
 
-        //niters = niters_sig.read();
+        // User-defined config code
+        /* <<--local-params-->> */
+        input_size = config.input_size;
+        input_v_size = config.input_v_size;
     }
 
-    { // LOAD 
-        printf("SHA.CPP LOADING INPUT\n");
-        int index = 0 ;
-        int num_w_cols = 1 ;
-        for (uint32_t i = 0; i < 100; i++) {
+    // Load
+    {
+        HLS_PROTO("load-dma");
+        wait();
 
-            // Load
-            if(ping_pong){
-                load_data(in_data_buf_1,index);
+        bool ping = true;
+        uint32_t offset = 0;
+
+        // Batching
+        for (uint16_t b = 0; b < 1; b++)
+        {
+            wait();
+#if (DMA_WORD_PER_BEAT == 0)
+            uint32_t length = input_v_size * input_size;
+#else
+            uint32_t length = round_up(input_v_size * input_size, DMA_WORD_PER_BEAT);
+#endif
+            // Chunking
+            for (int rem = length; rem > 0; rem -= PLM_IN_WORD)
+            {
+                wait();
+                // Configure DMA transaction
+                uint32_t len = rem > PLM_IN_WORD ? PLM_IN_WORD : rem;
+#if (DMA_WORD_PER_BEAT == 0)
+                // data word is wider than NoC links
+                dma_info_t dma_info(offset * DMA_BEAT_PER_WORD, len * DMA_BEAT_PER_WORD, DMA_SIZE);
+#else
+                dma_info_t dma_info(offset / DMA_WORD_PER_BEAT, len / DMA_WORD_PER_BEAT, DMA_SIZE);
+#endif
+                offset += len;
+
+                this->dma_read_ctrl.put(dma_info);
+
+#if (DMA_WORD_PER_BEAT == 0)
+                // data word is wider than NoC links
+                for (uint16_t i = 0; i < len; i++)
+                {
+                    sc_dt::sc_bv<DATA_WIDTH> dataBv;
+
+                    for (uint16_t k = 0; k < DMA_BEAT_PER_WORD; k++)
+                    {
+                        dataBv.range((k+1) * DMA_WIDTH - 1, k * DMA_WIDTH) = this->dma_read_chnl.get();
+                        wait();
+                    }
+
+                    // Write to PLM
+                    if (ping)
+                        plm_in_ping[i] = dataBv.to_int64();
+                    else
+                        plm_in_pong[i] = dataBv.to_int64();
+                }
+#else
+                for (uint16_t i = 0; i < len; i += DMA_WORD_PER_BEAT)
+                {
+                    HLS_BREAK_DEP(plm_in_ping);
+                    HLS_BREAK_DEP(plm_in_pong);
+
+                    sc_dt::sc_bv<DMA_WIDTH> dataBv;
+
+                    dataBv = this->dma_read_chnl.get();
+                    wait();
+
+                    // Write to PLM (all DMA_WORD_PER_BEAT words in one cycle)
+                    for (uint16_t k = 0; k < DMA_WORD_PER_BEAT; k++)
+                    {
+                        HLS_UNROLL_SIMPLE;
+                        if (ping)
+                            plm_in_ping[i + k] = dataBv.range((k+1) * DATA_WIDTH - 1, k * DATA_WIDTH).to_int64();
+                        else
+                            plm_in_pong[i + k] = dataBv.range((k+1) * DATA_WIDTH - 1, k * DATA_WIDTH).to_int64();
+                    }
+                }
+#endif
+                this->load_compute_handshake();
+                ping = !ping;
             }
-            else {
-                load_data(in_data_buf_2,index);
-            }
-            
-
-            // Handshake with compute
-            load_compute_handshake();
-
-            // Update pingpong var
-            ping_pong = !ping_pong;
-            // update mem address 
-            index += (num_w_cols) << 2 ;
         }
     }
+
     // Conclude
     {
-        HLS_DEFINE_PROTOCOL("load-input-done");
-
-        process_done();
+        this->process_done();
     }
-
 }
 
-void sha::compute_kernel(void)
-{
-    bool ping_pong;
-    //uint32_t niters;
 
+
+void sha::store_output()
+{
     // Reset
     {
-        HLS_DEFINE_PROTOCOL("compute-kernel-reset");
+        HLS_PROTO("store-reset");
 
-        input_ready.ack.reset_ack();
-        output_ready.req.reset_req();
+        this->reset_store_output();
 
-        ping_pong = false;
+        // explicit PLM ports reset if any
+
+        // User-defined reset code
 
         wait();
     }
 
     // Config
+    /* <<--params-->> */
+    int32_t input_size;
+    int32_t input_v_size;
     {
-        HLS_DEFINE_PROTOCOL("compute-kernel-config");
+        HLS_PROTO("store-config");
 
-        wait_for_config(); // memory-mapped regs
+        cfg.wait_for_config(); // config process
+        conf_info_t config = this->conf_info.read();
 
-        //niters = niters_sig.read();
-    }
-
-    // Compute
-    for (uint32_t i = 0; i < 100; i++) {
-
-        // Handshake with load_input
-        compute_load_handshake();
-
-        // Execute the computational kernel
-        printf("@@@@@@IN SHA.CPP BEFORE RUN DO_SHA\n");
-        do_sha(ping_pong);
-        printf("@@@@@@IN SHA.CPP BEFORE RUN DO_SHA\n");
-        // Update pingpong var
-        ping_pong = !ping_pong;
-
-        // Handshake with store_output
-        compute_store_handshake();
-    }
-
-    // Conclude
-    {
-        HLS_DEFINE_PROTOCOL("compute-kernel-done");
-
-        process_done();
-    }
-
-}
-
-void sha::store_output(void)
-{
-    bool ping_pong;
-    //uint32_t niters;
-
-    // Reset
-    {
-        HLS_DEFINE_PROTOCOL("store-output-reset");
-
-        dma_initiator.awchan->reset_put();
-        dma_initiator.wchan->reset_put();
-        dma_initiator.bchan->reset_get();
-
-        output_ready.ack.reset_ack();
-
-        ping_pong = false;
-
-        irq.write(false);
-
-        wait();
-    }
-
-    // Config
-    {
-        HLS_DEFINE_PROTOCOL("store-output-config");
-
-        wait_for_config(); // memory-mapped regs
-
-        //niters = niters_sig.read();
+        // User-defined config code
+        /* <<--local-params-->> */
+        input_size = config.input_size;
+        input_v_size = config.input_v_size;
     }
 
     // Store
     {
-        // TODO: Handshake with compute
-        store_compute_handshake();
-        // TODO: Store the data
-       uint32_t out_base_addr = 0 ;
-       uint32_t out_size = 0 ; // use signal read in future 
-        store_data(output,out_base_addr) ;
+        HLS_PROTO("store-dma");
+        wait();
+
+        bool ping = true;
+#if (DMA_WORD_PER_BEAT == 0)
+        uint32_t store_offset = (input_v_size * input_size) * 1;
+#else
+        uint32_t store_offset = round_up(input_v_size * input_size, DMA_WORD_PER_BEAT) * 1;
+#endif
+        uint32_t offset = store_offset;
+
+        wait();
+        // Batching
+        for (uint16_t b = 0; b < 1; b++)
+        {
+            wait();
+#if (DMA_WORD_PER_BEAT == 0)
+            uint32_t length = 5;
+#else
+            uint32_t length = round_up(5, DMA_WORD_PER_BEAT);
+#endif
+            // Chunking
+            for (int rem = length; rem > 0; rem -= PLM_OUT_WORD)
+            {
+
+                this->store_compute_handshake();
+
+                // Configure DMA transaction
+                uint32_t len = rem > PLM_OUT_WORD ? PLM_OUT_WORD : rem;
+#if (DMA_WORD_PER_BEAT == 0)
+                // data word is wider than NoC links
+                dma_info_t dma_info(offset * DMA_BEAT_PER_WORD, len * DMA_BEAT_PER_WORD, DMA_SIZE);
+#else
+                dma_info_t dma_info(offset / DMA_WORD_PER_BEAT, len / DMA_WORD_PER_BEAT, DMA_SIZE);
+#endif
+                offset += len;
+
+                this->dma_write_ctrl.put(dma_info);
+
+#if (DMA_WORD_PER_BEAT == 0)
+                // data word is wider than NoC links
+                for (uint16_t i = 0; i < len; i++)
+                {
+                    // Read from PLM
+                    sc_dt::sc_int<DATA_WIDTH> data;
+                    wait();
+                    if (ping)
+                        data = plm_out_ping[i];
+                    else
+                        data = plm_out_pong[i];
+                    sc_dt::sc_bv<DATA_WIDTH> dataBv(data);
+
+                    uint16_t k = 0;
+                    for (k = 0; k < DMA_BEAT_PER_WORD - 1; k++)
+                    {
+                        this->dma_write_chnl.put(dataBv.range((k+1) * DMA_WIDTH - 1, k * DMA_WIDTH));
+                        wait();
+                    }
+                    // Last beat on the bus does not require wait(), which is
+                    // placed before accessing the PLM
+                    this->dma_write_chnl.put(dataBv.range((k+1) * DMA_WIDTH - 1, k * DMA_WIDTH));
+                }
+#else
+                for (uint16_t i = 0; i < len; i += DMA_WORD_PER_BEAT)
+                {
+                    sc_dt::sc_bv<DMA_WIDTH> dataBv;
+
+                    // Read from PLM
+                    wait();
+                    for (uint16_t k = 0; k < DMA_WORD_PER_BEAT; k++)
+                    {
+                        HLS_UNROLL_SIMPLE;
+                        if (ping)
+                            dataBv.range((k+1) * DATA_WIDTH - 1, k * DATA_WIDTH) = plm_out_ping[i + k];
+                        else
+                            dataBv.range((k+1) * DATA_WIDTH - 1, k * DATA_WIDTH) = plm_out_pong[i + k];
+                    }
+                    this->dma_write_chnl.put(dataBv);
+                }
+#endif
+                ping = !ping;
+            }
+        }
     }
 
     // Conclude
     {
-        HLS_DEFINE_PROTOCOL("store-output-done");
+        this->accelerator_done();
+        this->process_done();
+    }
+}
 
-        // Set IRQ
-        irq.write(true);
 
-        // Wait for IRQ clear
-        clear_irq();
+void sha::compute_kernel()
+{
+    // Reset
+    {
+        HLS_PROTO("compute-reset");
 
-        process_done();
+        this->reset_compute_kernel();
+
+        // explicit PLM ports reset if any
+
+        // User-defined reset code
+
+        wait();
     }
 
+    // Config
+    /* <<--params-->> */
+    uint32_t input_size;
+    uint32_t input_v_size;
+    {
+        HLS_PROTO("compute-config");
+
+        cfg.wait_for_config(); // config process
+        conf_info_t config = this->conf_info.read();
+
+        // User-defined config code
+        /* <<--local-params-->> */
+        input_size = config.input_size;
+        input_v_size = config.input_v_size;
+        in_length = input_v_size * input_size;
+        // set sha info digest data 
+        sha_info_digest[0] = 0x67452301L;
+		sha_info_digest[1] = 0xefcdab89L;
+		sha_info_digest[2] = 0x98badcfeL;
+		sha_info_digest[3] = 0x10325476L;
+		sha_info_digest[4] = 0xc3d2e1f0L;
+		in_ct[0] = 8192 ;
+		in_ct[1] = 8192 ;
+        //uint32_t* result_sha_info_digest = new uint32_t[5] ;
+		
+    }
+
+
+    // Compute
+    bool ping = true;
+    bool out_ping = true; 
+    {
+        for (uint16_t b = 0; b < 1; b++)
+        {
+            
+            uint32_t out_length = 5;
+            int out_rem = out_length;
+
+            for (int in_rem = in_length; in_rem > 0; in_rem -= PLM_IN_WORD)
+            {
+
+                uint32_t in_len  = in_rem  > PLM_IN_WORD  ? PLM_IN_WORD  : in_rem;
+                uint32_t out_len = out_rem > PLM_OUT_WORD ? PLM_OUT_WORD : out_rem;
+
+                this->compute_load_handshake();
+
+                // Computing phase implementation
+                // set input value 
+                for(int i = 0 ; i < in_len ; i ++ ){
+                	if (ping)
+                        indata[i] = (unsigned char)plm_in_ping[i];
+                    else
+                        indata[i] = (unsigned char)plm_in_pong[i]; 
+                }
+
+                do_sha(input_size, input_v_size,
+                	indata,sha_info_digest,in_ct,result_sha_info_digest);
+                
+
+                /****Original */
+                for (int i = 0; i < out_length; i++) { 
+                    if (ping)
+                        plm_out_ping[i] = result_sha_info_digest[i];
+                    else
+                        plm_out_pong[i] = result_sha_info_digest[i];
+                }
+                /*****/ 
+                out_rem -= PLM_OUT_WORD;
+                this->compute_store_handshake();
+                ping = !ping;
+            }
+        }
+
+        // Conclude
+        {
+            this->process_done();
+        }
+    }
 }

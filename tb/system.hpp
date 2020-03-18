@@ -1,130 +1,92 @@
-/* Copyright 2019 Columbia University SLD Group */
+// Copyright (c) 2011-2019 Columbia University, System Level Design Group
+// SPDX-License-Identifier: Apache-2.0
 
 #ifndef __SYSTEM_HPP__
 #define __SYSTEM_HPP__
 
-#include <stdlib.h>
-#include <string.h>
+#include "sha_conf_info.hpp"
+#include "sha_debug_info.hpp"
+#include "sha.hpp"
+#include "sha_directives.hpp"
 
-#include "utils.hpp"
+#include "esp_templates.hpp"
 
-#include "driver.hpp"
-#include "memory.hpp"
+const size_t MEM_SIZE = 65560 / (DMA_WIDTH/8);
 
-#include "axi_traits.hpp"
+#include "core/systems/esp_system.hpp"
 
+#ifdef CADENCE
 #include "sha_wrap.h"
+#endif
 
-class system_t : public sc_module
+class system_t : public esp_system<DMA_WIDTH, MEM_SIZE>
 {
 public:
 
-    // -- Modules
-
-    // Memory's model
-    memory_t *memory;
-
-    // Driver's model
-    driver_t *driver;
-
-    // Accelerator's wrapper
+    // ACC instance
+#ifdef CADENCE
     sha_wrapper *acc;
+#else
+    sha *acc;
+#endif
 
-    // -- Input ports
-
-    // Clock signal
-    sc_in<bool> clk;
-
-    // Reset signal
-    sc_in<bool> rst;
-
-    // -- Output ports
-
-    // Interrupt signals
-    sc_signal<bool> irq;
-
-    // -- Internal Channels
-
-    // Channels to handle the DMA transactions
-    axi4::axi4_channel<dma_if_traits> dma_channel;
-
-    // Channels to handle the write/read reqs for the registers
-    axi4_lite::axi4_lite_channel<reg_if_traits> reg_channel;
-
-    // -- Constructor
-
+    // Constructor
     SC_HAS_PROCESS(system_t);
     system_t(sc_module_name name)
-        : sc_module(name)
-        , clk("clk")
-        , rst("rst")
-        , irq("irq")
-        , reg_channel("reg_channel")
-        , dma_channel("dma_channel")
+        : esp_system<DMA_WIDTH, MEM_SIZE>(name)
     {
-        // Instantiate the driver's model
-        driver = new driver_t("driver");
-
-        // Instantiate the memory's model
-        memory = new memory_t("memory");
-
-        // Instantiate the accelerator
-        acc = new sha_wrapper("sha");
-
-        // Binding the driver's model
-        driver->clk(clk);
-        driver->rst(rst);
-        driver->irq(irq);
-        driver->system_ref = this;
-        driver->reg_initiator(reg_channel);
-
-        // Binding the memory's model
-        memory->clk(clk);
-        memory->rst(rst);
-        dma_channel(memory->dma_target);
-
-        // Binding the acceleratorr
+        // ACC
+#ifdef CADENCE
+        acc = new sha_wrapper("sha_wrapper");
+#else
+        acc = new sha("sha_wrapper");
+#endif
+        // Binding ACC
         acc->clk(clk);
-        acc->rst(rst);
-        acc->irq(irq);
-        reg_channel(acc->reg_target);
-        acc->dma_initiator(dma_channel);
+        acc->rst(acc_rst);
+        acc->dma_read_ctrl(dma_read_ctrl);
+        acc->dma_write_ctrl(dma_write_ctrl);
+        acc->dma_read_chnl(dma_read_chnl);
+        acc->dma_write_chnl(dma_write_chnl);
+        acc->conf_info(conf_info);
+        acc->conf_done(conf_done);
+        acc->acc_done(acc_done);
+        acc->debug(debug);
+
+        /* <<--params-default-->> */
+        input_size = 8192;
+        input_v_size = 2;
     }
 
-    // -- Functions
+    // Processes
 
-    void load_original_data(void) ;
+    // Configure accelerator
+    void config_proc();
 
-    // Load the value of the registers
-    void load_regs(void);
+    // Load internal memory
+    void load_memory();
 
-    // Load the input values in memory
-    void load_memory(void);
+    // Dump internal memory
+    void dump_memory();
 
-    // Read the output values from memory
-    void dump_memory(void);
+    // Validate accelerator results
+    int validate();
 
-    // Verify that the results are correct
-    void validate(void);
+    // Accelerator-specific data
+    /* <<--params-->> */
+    int32_t input_size;
+    int32_t input_v_size;
 
-    // Optionally free resources (arrays)
-    void clean_up(void);
+    uint32_t in_words_adj;
+    uint32_t out_words_adj;
+    uint32_t in_size;
+    uint32_t out_size;
+    int32_t *in;
+    int32_t *out;
+    uint32_t *gold;
 
-
-    // -- Private data
-
-    // Base addresses
-    uint32_t in_data_size;
-    //uint32_t in_coeff_size;
-    //uint32_t out_data_size;
-
-    uint32_t in_data_addr;
-    //uint32_t in_coeff_addr;
-    //uint32_t out_data_addr;
-
-    uint32_t mem_size; // = sum of all data_size
-
-    uint32_t test[100] ;
+    // Other Functions
+    int32_t* initialize_input(int32_t * buffer, int in_size) ;
 };
 
-#endif /* __SYSTEM_HPP__ */
+#endif // __SYSTEM_HPP__
