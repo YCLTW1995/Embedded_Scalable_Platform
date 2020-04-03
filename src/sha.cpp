@@ -7,7 +7,6 @@
 // Functions
 
 #include "sha_functions.hpp"
-
 // Processes
 
 void sha::load_input()
@@ -294,7 +293,11 @@ void sha::compute_kernel()
 		in_ct[0] = 8192 ;
 		in_ct[1] = 8192 ;
         //uint32_t* result_sha_info_digest = new uint32_t[5] ;
-		
+		///test
+        input_size = 1024 ;
+        input_v_size = 2 ;
+        in_ct[0] = 1024 ;
+        in_ct[1] = 1024;
     }
 
 
@@ -324,7 +327,33 @@ void sha::compute_kernel()
                     else
                         indata[i] = (unsigned char)plm_in_pong[i]; 
                 }
-
+                // do data preprocess
+                /*
+                //uint32_t new_size = preprocess(indata);
+                uint32_t new_size = 0 ;
+                uint32_t break_ct = 0 ;
+                for(int i = 0 ; i < 16384 ; i ++){
+                    new_size++;
+                    if(indata[i] == 0){
+                        break_ct ++ ;
+                    }
+                    if(break_ct >=10){
+                        break ;
+                    }
+                }
+                for(int xx= 0 ; xx < new_size ; xx ++){
+                    printf(" %d",(int)indata[xx]);
+                }
+                //
+                if (new_size%2 != 0 ) new_size +=1 ;
+                new_size = 2048;
+                input_size = new_size/2 ;
+                input_v_size = 2 ;
+                in_ct[0] = input_size ;
+                in_ct[1] = input_size ;
+                //do SHA
+                printf("Before doing SHA input size is %d %d,\n",new_size,input_size);
+                */
                 do_sha(input_size, input_v_size,
                 	indata,sha_info_digest,in_ct,result_sha_info_digest);
                 

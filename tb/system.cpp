@@ -4,6 +4,7 @@
 #include <sstream>
 #include "system.hpp"
 #include "inputdata.hpp"
+#include "read_txt.hpp"
 // Process
 void system_t::config_proc()
 {
@@ -45,7 +46,6 @@ void system_t::config_proc()
         // Print information about end time
         sc_time end_time = sc_time_stamp();
         ESP_REPORT_TIME(end_time, "END - sha");
-
         esc_log_latency(sc_object::basename(), clock_cycle(end_time - begin_time));
         wait(); conf_done.write(false);
     }
@@ -83,7 +83,7 @@ void system_t::load_memory()
 
     // Input data and golden output (aligned to DMA_WIDTH makes your life easier)
 #if (DMA_WORD_PER_BEAT == 0)
-    in_words_adj = input_v_size * input_size;
+    in_words_adj = input_v_size * input_size; // = 16384
     out_words_adj = 5;
 #else
     in_words_adj = round_up(input_v_size * input_size, DMA_WORD_PER_BEAT);
@@ -99,7 +99,16 @@ void system_t::load_memory()
             in[i * in_words_adj + j] = (int32_t) j;
 ******/
     in = new int32_t[in_size] ;
+    /// Original read input from fixed unsigned array
     in = initialize_input(in, in_size) ;
+    // Read input from txtfile
+    //printf("Before reading input\n");
+    int32_t *tmp = new int32_t [16384] ;
+    tmp = read_txt() ;
+    for(int ii = 0 ; ii < 16384 ; ii ++){
+        in[ii] = tmp[ii] ;
+    }
+    free(tmp);
     // Compute golden output
     gold = new uint32_t[out_size];
     gold[0] = 6969911;
@@ -125,7 +134,7 @@ void system_t::load_memory()
         mem[i] = data_bv;
     }
 #endif
-
+    
     ESP_REPORT_INFO("load memory completed");
 }
 
