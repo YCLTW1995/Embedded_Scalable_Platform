@@ -100,7 +100,7 @@ void system_t::load_memory()
 ******/
     in = new int32_t[in_size] ;
     /// Original read input from fixed unsigned array
-    in = initialize_input(in, in_size) ;
+    //in = initialize_input(in, in_size) ;
     // Read input from txtfile
     //printf("Before reading input\n");
     int32_t *tmp = new int32_t [16384] ;
@@ -111,13 +111,13 @@ void system_t::load_memory()
     free(tmp);
     // Compute golden output
     gold = new uint32_t[out_size];
-    gold[0] = 6969911;
-    gold[1] = 2480706693;
-    gold[2] = 742465810;
-    gold[3] = 1677179459;
-    gold[4] =  2910058786;
+    gold[0] = 483882889;
+    gold[1] = 2434025939;
+    gold[2] = 445413354;
+    gold[3] = 3418370581;
+    gold[4] = 2278125485;
 
-
+    printf("\nTB : Total Input Size is %d\n",in[16383]);
 
     // Memory initialization:
 #if (DMA_WORD_PER_BEAT == 0)
@@ -171,7 +171,7 @@ int system_t::validate()
 
     for (int i = 0; i < 1; i++)
         for (int j = 0; j < 5; j++){
-            printf("gold out is %u, out is %u \n", gold[i * out_words_adj + j], (uint32_t)(out[i * out_words_adj + j])) ;
+            printf("gold out is %u, out is %u \n", (uint32_t)gold[i * out_words_adj + j], (uint32_t)(out[i * out_words_adj + j])) ;
             if (gold[i * out_words_adj + j] != out[i * out_words_adj + j])
                 errors++;
         }
