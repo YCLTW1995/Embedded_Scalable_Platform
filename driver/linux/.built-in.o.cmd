@@ -1,0 +1,1 @@
+cmd_/home/esp2020/yl4337/esp/soft/leon3/drivers/sha/linux/built-in.o :=  rm -f /home/esp2020/yl4337/esp/soft/leon3/drivers/sha/linux/built-in.o; sparc-linux-ar rcsD /home/esp2020/yl4337/esp/soft/leon3/drivers/sha/linux/built-in.o
